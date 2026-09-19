@@ -48,6 +48,9 @@ func (c *Converter) renderLink(anchor *html.Node) string {
 
 // renderImage renders an <img> as Markdown, skipping tracking pixels.
 func (c *Converter) renderImage(image *html.Node) string {
+	if isMathFallbackImage(image) {
+		return c.renderMath(image, isDisplayMath(image))
+	}
 	if shouldSkipImage(image) {
 		return ""
 	}

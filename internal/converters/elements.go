@@ -27,6 +27,10 @@ func isBlockElement(tag string) bool {
 
 // renderBlockElement renders a single block-level element to Markdown.
 func (c *Converter) renderBlockElement(node *html.Node) string {
+	if isMathElement(node) {
+		return c.renderMath(node, isDisplayMath(node))
+	}
+
 	switch node.Data {
 	case "h1", "h2", "h3", "h4", "h5", "h6":
 		level := int(node.Data[1] - '0')
@@ -66,6 +70,10 @@ func (c *Converter) renderBlockElement(node *html.Node) string {
 
 // renderInlineElement renders a single inline-level element to Markdown.
 func (c *Converter) renderInlineElement(node *html.Node) string {
+	if isMathElement(node) {
+		return c.renderMath(node, false)
+	}
+
 	switch node.Data {
 	case "strong", "b":
 		return wrapInline("**", c.renderInlineChildren(node))

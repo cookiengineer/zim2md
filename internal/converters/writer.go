@@ -26,7 +26,12 @@ func (c *Converter) renderBlocks(parent *html.Node) string {
 		case textNode:
 			inline.WriteString(escapeMarkdownText(collapseWhitespace(child.Data)))
 		case elementNode:
-			if isBlockElement(child.Data) {
+			if isMathElement(child) && isDisplayMath(child) {
+				flushInline()
+				if chunk := c.renderMath(child, true); chunk != "" {
+					chunks = append(chunks, chunk)
+				}
+			} else if isBlockElement(child.Data) {
 				flushInline()
 				if chunk := c.renderBlockElement(child); chunk != "" {
 					chunks = append(chunks, chunk)

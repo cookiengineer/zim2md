@@ -34,6 +34,13 @@ example-123.zim + "dir/"               ->  example-123/dir/index.md
 - Internal links are rewritten so they point at the exported `.md` files;
   `javascript:`, `vbscript:` and `data:` URLs are dropped.
 - GFM tables for data tables; layout tables are unwrapped in reading order.
+- Mathematical formulas from MediaWiki/Wikipedia `<math>` elements become
+  standard Markdown math carrying the exact TeX source: `$...$` inline and
+  `$$...$$` for display formulas, for example
+  `$P = a_{0} + \cdots + a_{n}X^{n}$`. The original TeX annotation is
+  preferred; `alttext`, a fallback image and finally a MathML-to-LaTeX
+  conversion are used as fallbacks. Renderable by GitHub, GitLab, VS Code,
+  Obsidian, Pandoc and KaTeX/MathJax.
 - Redirect entries are skipped and listed in a report.
 - Optional asset export (`--assets`).
 - Parallel conversion using a bounded worker pool. The ZIM index is read once
@@ -177,6 +184,7 @@ The conversion pipeline is split into small, single-purpose packages:
 | `internal/mappers` | HTML path → Markdown path mapping, segment sanitization, collision-free allocation, relative links |
 | `internal/parsers` | HTML parsing, charset handling, Reader-Mode content scoring, sanitization |
 | `internal/converters` | DOM → Markdown writer, element mapping, code-language detection, link/image rewriting |
+| `internal/mathml` | Presentation MathML → LaTeX and TeX extraction (annotation, `alttext`) |
 | `internal/exporters` | Atomic file writes and the run report |
 | `internal/nodes` | Shared helpers for working with `x/net/html` node trees |
 | `internal/cli` | Flag parsing, orchestration, worker pool, summary and exit codes |
@@ -189,7 +197,8 @@ Reader-Mode extraction works in three steps:
    `pagination`, `related`, `mw-editsection`, `catlinks`, …
 2. **Score** candidate containers from paragraph-like elements, class/id
    weights and link density, then pick the best candidate (falling back to
-   `<body>`).
+   `<body>`). Math wrappers are kept even when `display: none`, so the hidden
+   TeX annotation of the MediaWiki Mathoid output survives.
 3. **Clean** the result: drop empty wrappers, tracking images and empty links.
 
 The sanitizing writer escapes Markdown metacharacters and `<`/`>` in text, so

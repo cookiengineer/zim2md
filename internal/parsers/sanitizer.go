@@ -48,6 +48,7 @@ var negativeClassSubstrings = []string{
 // sanitizeDocument removes non-content structure in place.
 func sanitizeDocument(root *html.Node) {
 	var toRemove []*html.Node
+	preserveMath := containsMath(root)
 
 	nodes.Walk(root, func(node *html.Node) bool {
 		switch node.Type {
@@ -57,7 +58,7 @@ func sanitizeDocument(root *html.Node) {
 			}
 			return true
 		case html.ElementNode:
-			if isUnwantedElement(node) {
+			if isUnwantedElement(node, preserveMath) {
 				toRemove = append(toRemove, node)
 			}
 			return true
@@ -70,37 +71,62 @@ func sanitizeDocument(root *html.Node) {
 	}
 }
 
-func isUnwantedElement(node *html.Node) bool {
+func isUnwantedElement(node *html.Node, preserveMath bool) bool {
 	// Never drop the structural roots, regardless of their class list.
 	if node.Data == "html" || node.Data == "body" {
 		return false
 	}
 
+	// Math markup is often hidden behind display:none (the accessibility
+	// variant of the Mathoid output), so it must survive the structural cleanup.
+	keepForMath := func() bool {
+		return preserveMath && containsMath(node)
+	}
+
 	if _, unwanted := unwantedElements[node.Data]; unwanted {
-		return true
+		return !keepForMath()
 	}
 
 	if nodes.HasAttribute(node, "hidden") {
-		return true
+		return !keepForMath()
 	}
 	if strings.EqualFold(nodes.Attribute(node, "aria-hidden"), "true") {
-		return true
+		return !keepForMath()
 	}
 
 	if role := strings.ToLower(strings.TrimSpace(nodes.Attribute(node, "role"))); role != "" {
 		if _, unwanted := unwantedRoles[role]; unwanted {
-			return true
+			return !keepForMath()
 		}
 	}
 
 	if style := strings.ToLower(nodes.Attribute(node, "style")); style != "" {
 		if strings.Contains(style, "display:none") || strings.Contains(style, "display: none") ||
 			strings.Contains(style, "visibility:hidden") || strings.Contains(style, "visibility: hidden") {
-			return true
+			return !keepForMath()
 		}
 	}
 
-	return hasNegativeClassToken(node)
+	if hasNegativeClassToken(node) {
+		return !keepForMath()
+	}
+	return false
+}
+
+// containsMath reports whether the node holds a <math> subtree.
+func containsMath(node *html.Node) bool {
+	if node.Type == html.ElementNode && node.Data == "math" {
+		return true
+	}
+	found := false
+	nodes.Walk(node, func(current *html.Node) bool {
+		if nodes.IsElement(current, "math") {
+			found = true
+			return false
+		}
+		return !found
+	})
+	return found
 }
 
 func hasNegativeClassToken(node *html.Node) bool {
@@ -128,6 +154,7 @@ func removeEmptyElements(root *html.Node) {
 		"article": {}, "blockquote": {}, "div": {}, "li": {}, "ol": {},
 		"p": {}, "section": {}, "span": {}, "ul": {},
 	}
+	preserveMath := containsMath(root)
 
 	for {
 		var empty []*html.Node
@@ -145,6 +172,7 @@ func removeEmptyElements(root *html.Node) {
 				nodes.ContainsElement(node, "audio") ||
 				nodes.ContainsElement(node, "video") ||
 				nodes.ContainsElement(node, "canvas") ||
+				(preserveMath && nodes.ContainsElement(node, "math")) ||
 				nodes.ContainsElement(node, "hr") ||
 				nodes.ContainsElement(node, "br") {
 				return true
